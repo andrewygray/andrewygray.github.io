@@ -1,42 +1,126 @@
-const gulp = require('gulp');
-const browserSync = require('browser-sync').create();
-const sass = require('gulp-sass');
+var gulp = require('gulp');
+var sass = require('gulp-sass');
+var header = require('gulp-header');
+var cleanCSS = require('gulp-clean-css');
+var rename = require("gulp-rename");
+var uglify = require('gulp-uglify');
+var pkg = require('./package.json');
+var browserSync = require('browser-sync').create();
 
-//Compile Sass and Inject Into Browser
-gulp.task('sass', function(){
-  return gulp.src(['node_modules/bootstrap/scss/bootstrap.scss','src/scss/*.scss'])
-  .pipe(sass())
-  .pipe(gulp.dest("src/css"))
-  .pipe(browserSync.stream());
+// Set the banner content
+var banner = ['/*!\n',
+  ' * Start Bootstrap - <%= pkg.title %> v<%= pkg.version %> (<%= pkg.homepage %>)\n',
+  ' * Copyright 2013-' + (new Date()).getFullYear(), ' <%= pkg.author %>\n',
+  ' * Licensed under <%= pkg.license %> (https://github.com/BlackrockDigital/<%= pkg.name %>/blob/master/LICENSE)\n',
+  ' */\n',
+  ''
+].join('');
+
+// Copy third party libraries from /node_modules into /vendor
+gulp.task('vendor', function() {
+
+  // Bootstrap
+  gulp.src([
+      './node_modules/bootstrap/dist/**/*',
+      '!./node_modules/bootstrap/dist/css/bootstrap-grid*',
+      '!./node_modules/bootstrap/dist/css/bootstrap-reboot*'
+    ])
+    .pipe(gulp.dest('./vendor/bootstrap'))
+
+  // Font Awesome
+  gulp.src([
+      './node_modules/font-awesome/**/*',
+      '!./node_modules/font-awesome/{less,less/*}',
+      '!./node_modules/font-awesome/{scss,scss/*}',
+      '!./node_modules/font-awesome/.*',
+      '!./node_modules/font-awesome/*.{txt,json,md}'
+    ])
+    .pipe(gulp.dest('./vendor/font-awesome'))
+
+  // jQuery
+  gulp.src([
+      './node_modules/jquery/dist/*',
+      '!./node_modules/jquery/dist/core.js'
+    ])
+    .pipe(gulp.dest('./vendor/jquery'))
+
+  // jQuery Easing
+  gulp.src([
+      './node_modules/jquery.easing/*.js'
+    ])
+    .pipe(gulp.dest('./vendor/jquery-easing'))
+
+  // Simple Line Icons
+  gulp.src([
+      './node_modules/simple-line-icons/fonts/**',
+    ])
+    .pipe(gulp.dest('./vendor/simple-line-icons/fonts'))
+
+  gulp.src([
+      './node_modules/simple-line-icons/css/**',
+    ])
+    .pipe(gulp.dest('./vendor/simple-line-icons/css'))
+
 });
 
-//Move JS Files to src/js
-gulp.task('js', function(){
-  return gulp.src(['node_modules/bootstrap/dist/js/bootstrap.min.js','node_modules/jquery/dist/jquery.min.js','node_modules/popper.js/dist/umd/popper.min.js'])
-  .pipe(gulp.dest("src/js"))
-  .pipe(browserSync.stream());
+// Compile SCSS
+gulp.task('css:compile', function() {
+  return gulp.src('./scss/**/*.scss')
+    .pipe(sass.sync({
+      outputStyle: 'expanded'
+    }).on('error', sass.logError))
+    .pipe(gulp.dest('./css'))
 });
 
-//Watch Sass and Server
-gulp.task('serve', ['sass'], function(){
+// Minify CSS
+gulp.task('css:minify', ['css:compile'], function() {
+  return gulp.src([
+      './css/*.css',
+      '!./css/*.min.css'
+    ])
+    .pipe(cleanCSS())
+    .pipe(rename({
+      suffix: '.min'
+    }))
+    .pipe(gulp.dest('./css'))
+    .pipe(browserSync.stream());
+});
+
+// CSS
+gulp.task('css', ['css:compile', 'css:minify']);
+
+// Minify JavaScript
+gulp.task('js:minify', function() {
+  return gulp.src([
+      './js/*.js',
+      '!./js/*.min.js'
+    ])
+    .pipe(uglify())
+    .pipe(rename({
+      suffix: '.min'
+    }))
+    .pipe(gulp.dest('./js'))
+    .pipe(browserSync.stream());
+});
+
+// JS
+gulp.task('js', ['js:minify']);
+
+// Default task
+gulp.task('default', ['css', 'js', 'vendor']);
+
+// Configure the browserSync task
+gulp.task('browserSync', function() {
   browserSync.init({
-    server: "./src"
+    server: {
+      baseDir: "./"
+    }
   });
-
-  gulp.watch(['node_modules/bootstrap/scss/bootstrap.scss', 'src/scss/*.scss'], ['sass']);
-  gulp.watch("src/*.html").on('change', browserSync.reload);
 });
 
-//Move Fonts Folder to src
-gulp.task('fonts', function(){
-  return gulp.src('node_modules/font-awesome/fonts/*')
-  .pipe(gulp.dest("src/fonts"));
+// Dev task
+gulp.task('dev', ['css', 'js', 'browserSync'], function() {
+  gulp.watch('./scss/*.scss', ['css']);
+  gulp.watch('./js/*.js', ['js']);
+  gulp.watch('./*.html', browserSync.reload);
 });
-
-//Move Fonts Awesome CSS to src/css
-gulp.task('fa', function(){
-  return gulp.src('node_modules/font-awesome/css/font-awesome.min.css')
-  .pipe(gulp.dest("src/css"));
-});
-
-gulp.task('default', ['js', 'serve', 'fa', 'fonts']);
